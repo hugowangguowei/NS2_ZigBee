@@ -13,19 +13,19 @@ set val(chan)           Channel/WirelessChannel    ;# Channel Type
 set val(prop)           Propagation/TwoRayGround   ;# radio-propagation model
 set val(netif)          Phy/WirelessPhy/802_15_4
 set val(mac)            Mac/802_15_4
-set val(ifq)            Queue/DropTail/PriQueue    ;# interface queue type
-set val(ll)             LL                         ;# link layer type
-set val(ant)            Antenna/OmniAntenna        ;# antenna model
+set val(ifq)            Queue/DropTail/PriQueue    ;# interface queue type 接口队列类型？
+set val(ll)             LL                         ;# link layer type  链路层类型
+set val(ant)            Antenna/OmniAntenna        ;# antenna model  天线模式/全向天线
 set val(ifqlen)         50                         ;# max packet in ifq
 set val(nn)             25                         ;# number of mobilenodes
-set val(rp)             AODV                       ;# routing protocol
+set val(rp)             AODV                       ;# routing protocol  节点路由层设置为按需距离矢量路由协议
 set val(x)		50
 set val(y)		50
 
 set val(nam)		wpan_demo1.nam
 set val(traffic)	ftp                        ;# cbr/poisson/ftp
 
-#read command line arguments
+#read command line arguments 阅读命令行参数？
 proc getCmdArgu {argc argv} {
         global val
         for {set i 0} {$i < $argc} {incr i} {
@@ -42,7 +42,10 @@ set appTime2            0.3	;# in seconds
 set appTime3            0.7	;# in seconds 
 set stopTime            100	;# in seconds 
 
+
+# 开始正文部分
 # Initialize Global Variables
+# 新建一个模拟器
 set ns_		[new Simulator]
 set tracefd     [open ./wpan_demo1.tr w]
 $ns_ trace-all $tracefd
@@ -86,7 +89,7 @@ set god_ [create-god $val(nn)]
 set chan_1_ [new $val(chan)]
 
 # configure node
-
+# 定义节点属性（按照上面设定好的值）
 $ns_ node-config -adhocRouting $val(rp) \
 		-llType $val(ll) \
 		-macType $val(mac) \
@@ -106,6 +109,7 @@ $ns_ node-config -adhocRouting $val(rp) \
                 #-txPower 0.3 \
 		-channel $chan_1_ 
 
+#将节点都实例化		
 for {set i 0} {$i < $val(nn) } {incr i} {
 	set node_($i) [$ns_ node]	
 	$node_($i) random-motion 0		;# disable random motion
@@ -114,10 +118,23 @@ for {set i 0} {$i < $val(nn) } {incr i} {
 source ./wpan_demo1.scn
 
 # Setup traffic flow between nodes
+# 启动节点间信息传递规范
 
 proc cbrtraffic { src dst interval starttime } {
    global ns_ node_
-   set udp($src) [new Agent/UDP]
+   #创建一个UDP Agent
+	#UDP（User Data Protocol，用户数据报协议）是与TCP相对应的协议。
+	#它是面向非连接的协议，它不与对方建立连接，而是直接就把数据包发送过去！ 
+	#UDP适用于一次只传送少量数据、对可靠性要求不高的应用环境。
+	#比如，我们经常使用“ping”命令来测试两台主机之间TCP/IP通信是否正常，
+	#其实“ping”命令的原理就是向对方主机发送UDP数据包，然后对方主机确认收到数据包，
+	#如果数据包是否到达的消息及时反馈回来，那么网络就是通的。
+	#例如，在默认状态下，一次“ping”操作发送4个数据包（如图2所示）。
+	#大家可以看到，发送的数据包数量是4包，收到的也是4包（因为对方主机收到后会发回一个确认收到的数据包）。
+	#这充分说明了UDP协议是面向非连接的协议，没有建立连接的过程。
+	#正因为UDP协议没有连接的过程，所以它的通信效果高；但也正因为如此，它的可靠性不如TCP协议高。
+   set udp($src) [new Agent/UDP] 
+   #将该UDP Agent绑定在 $src 这个节点上
    eval $ns_ attach-agent \$node_($src) \$udp($src)
    set null($dst) [new Agent/Null]
    eval $ns_ attach-agent \$node_($dst) \$null($dst)
@@ -131,6 +148,7 @@ proc cbrtraffic { src dst interval starttime } {
    $ns_ at $starttime "$cbr($src) start"
 }
 
+# 泊松通信？
 proc poissontraffic { src dst interval starttime } {
    global ns_ node_
    set udp($src) [new Agent/UDP]
