@@ -120,6 +120,8 @@ source ./wpan_demo1.scn
 # Setup traffic flow between nodes
 # 启动节点间信息传递规范
 
+# CBR(Constant Bit Rate)
+# 到目前为止并不知道 src dst 这两个参数是哪里来的
 proc cbrtraffic { src dst interval starttime } {
    global ns_ node_
    #创建一个UDP Agent
@@ -136,19 +138,26 @@ proc cbrtraffic { src dst interval starttime } {
    set udp($src) [new Agent/UDP] 
    #将该UDP Agent绑定在 $src 这个节点上
    eval $ns_ attach-agent \$node_($src) \$udp($src)
+   #创建一个Null Agent
+	#Null 是一种数据接收器，负责接收CBR发送的数据
    set null($dst) [new Agent/Null]
+   #将该Null Agent绑定在 $dst节点上 （dst节点只有一个吗？）
    eval $ns_ attach-agent \$node_($dst) \$null($dst)
+   #创建一个CBR(constant Bit Rate)流量发生器
    set cbr($src) [new Application/Traffic/CBR]
+   #设定分组大小为 70B
    eval \$cbr($src) set packetSize_ 70
+   #设定发送间隔为 $interval
    eval \$cbr($src) set interval_ $interval
    eval \$cbr($src) set random_ 0
-   #eval \$cbr($src) set maxpkts_ 10000
+   #将CBR发生器绑定在 $src 这个节点上
    eval \$cbr($src) attach-agent \$udp($src)
+   #将udp和null这两个Agent连接起来
    eval $ns_ connect \$udp($src) \$null($dst)
    $ns_ at $starttime "$cbr($src) start"
 }
 
-# 泊松通信？
+# 泊松通信？与上面的CBR类似，只是设置更多一些
 proc poissontraffic { src dst interval starttime } {
    global ns_ node_
    set udp($src) [new Agent/UDP]
@@ -169,6 +178,7 @@ if { ("$val(traffic)" == "cbr") || ("$val(traffic)" == "poisson") } {
    puts "\nTraffic: $val(traffic)"
    #Mac/802_15_4 wpanCmd ack4data on
    puts [format "Acknowledgement for data: %s" [Mac/802_15_4 wpanCmd ack4data]]
+   #设置在不同的时间里的传输速率
    set lowSpeed 0.5ms
    set highSpeed 1.5ms
    Mac/802_15_4 wpanNam PlaybackRate $lowSpeed
@@ -177,6 +187,8 @@ if { ("$val(traffic)" == "cbr") || ("$val(traffic)" == "poisson") } {
    $ns_ at [expr $appTime2+0.1] "Mac/802_15_4 wpanNam PlaybackRate $highSpeed"
    $ns_ at $appTime3 "Mac/802_15_4 wpanNam PlaybackRate $lowSpeed"
    $ns_ at [expr $appTime3+0.1] "Mac/802_15_4 wpanNam PlaybackRate $highSpeed"
+   #设置三次通信？
+   #eval 命令的用法与java中相同，都是将字符串转换成命令以执行
    eval $val(traffic)traffic 19 6 0.2 $appTime1
    eval $val(traffic)traffic 10 4 0.2 $appTime2
    eval $val(traffic)traffic 3 2 0.2 $appTime3
@@ -239,6 +251,7 @@ if { "$val(traffic)" == "ftp" } {
    Mac/802_15_4 wpanNam FlowClr -p ack -s 2 -d 3 -c cyan4
    $ns_ at $appTime1 "$node_(19) NodeClr blue"
    $ns_ at $appTime1 "$node_(6) NodeClr blue"
+   #该指令发出会使得nam中的节点颜色发生变化，且在下面的说明栏中展示
    $ns_ at $appTime1 "$ns_ trace-annotate \"(at $appTime1) ftp traffic from node 19 to node 6\""
    $ns_ at $appTime2 "$node_(10) NodeClr green4"
    $ns_ at $appTime2 "$node_(4) NodeClr green4"
