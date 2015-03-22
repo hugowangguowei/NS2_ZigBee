@@ -80,6 +80,8 @@ CsmaCA802_15_4::~CsmaCA802_15_4()
 	delete deferCCAT;
 }
 
+//重置函数
+//分为信标使能和非信标使能两部分
 void CsmaCA802_15_4::reset(void)
 {
 	if (beaconEnabled)
@@ -97,6 +99,7 @@ void CsmaCA802_15_4::reset(void)
 	}
 }
 
+//获得竞争接入器的起始时间
 double CsmaCA802_15_4::adjustTime(double wtime)
 {
 	//find the beginning point of CAP and adjust the scheduled time
@@ -390,6 +393,7 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 	}
 }
 
+//新信标发送过来后的响应
 void CsmaCA802_15_4::newBeacon(char trx)
 {
 	//this function will be called by MAC each time a new beacon received or sent within the current PAN
@@ -402,8 +406,19 @@ void CsmaCA802_15_4::newBeacon(char trx)
 		bcnOtherT->stop();
 
 	//update values
+	//更新信标使能状态
+	//超帧结构由协调器定义，并且在网络层中使用MLME-START.request primitive请求原语进行配置。
+	//两个连续信标间的持续时间，时间间隔（BI）, 由数值macBeaconOrder(BO)属性和aBaseSuperframeDuration常量使用下面的等式决定：
+    //BI = aBaseSuperframeDuration × 2BO（symbols）
+    //例如，给出aBaseSuperframeDuration的值是960 Symbols, 而BO的值是2，那么信标间隔BI将会是3840 symbols. 
+	//“IEEE 802.15.4 standard document[2]”中提供了MAC的常量和属性。
+    //在一个信标使能的网络中，BO可以是0-14中的任何值，如果BO的值被设置为15，网络将被认为是非信标使能，并且不使用任何超帧。
+	//类似的，超帧激活时间段的长度叫做超帧持续时间（SD）,由下面等式计算得到：
+	//SD = aBaseSuperframeDuration × 2SO（symbols）
+	//其中SO是macSuperframeOrder属性的值。超帧持续时间SD不能超出信标间隔BI，因此,SO的值总是小于或等于BO。
 	beaconEnabled = ((mac->mpib.macBeaconOrder != 15)||(mac->macBeaconOrder2 != 15));
 	beaconOther = (mac->macBeaconOrder3 != 15);
+	//先确定信标使能状态，然后执行reset
 	reset();	
 	rate = phy->getRate('s');
 	bcnTxTime = mac->macBcnTxTime / rate;
