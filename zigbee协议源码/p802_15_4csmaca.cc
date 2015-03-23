@@ -291,23 +291,34 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 	//而长帧则是长度大于  aMaxSIFSFramesSize个字节的MPDU。
 	if (HDR_CMN(txPkt)->size() <= aMaxSIFSFrameSize)
 		t_IFS = aMinSIFSPeriod;
+		//选择短帧间间隔
 	else
 		t_IFS = aMinLIFSPeriod;
+		//选择长帧间间隔
+		//macMinSIFSPeriod和macMinLIFSPeriod的值分别是12和40 symbols
 	t_IFS /= phy->getRate('s');
-	t_transacTime  = mac->locateBoundary(mac->toParent(txPkt),wtime) - wtime;				//boundary location time -- should be 0 here, since we have already located the boundary
-	if (!afterCCA)
+	//获得标准时间单位？
+	t_transacTime  = mac->locateBoundary(mac->toParent(txPkt),wtime) - wtime;
+	//boundary location time -- should be 0 here, since we have already located the boundary
+	if (!afterCCA)//在CSMA-CA中，当设备想要发送信息时，它将执行一条CCA来确保信道没有被其他设备使用，然后设备开始发送自己的信号。
+	//所以在这里，是没有发送CCA的意思吗？
 	{
 		t_transacTime += t_CCATime;									//first CCA time
 		t_transacTime += mac->locateBoundary(mac->toParent(txPkt),t_transacTime) - (t_transacTime);	//boundary location time for second CCA
+		//难道说第一的CCA发出后，需要等待一个退避时隙后再反馈CCA
 		t_transacTime += t_CCATime;									//second CCA time
 	}
 	t_transacTime += mac->locateBoundary(mac->toParent(txPkt),t_transacTime) - (t_transacTime);		//boundary location time for transmission
 	t_transacTime += phy->trxTime(txPkt);									//packet transmission time
 	if (ackReq)
+	//如果需要应答帧，那么需要再把应答时间添上去
 	{
-		t_transacTime += mac->mpib.macAckWaitDuration/phy->getRate('s');				//ack. waiting time (this value does not include round trip propagation delay)
-		t_transacTime += 2*max_pDelay;									//round trip propagation delay (802.15.4 ignores this, but it should be there even though it is very small)
-		t_transacTime += t_IFS;										//IFS time -- not only ensure that the sender can finish the transaction, but also the receiver
+		t_transacTime += mac->mpib.macAckWaitDuration/phy->getRate('s');
+		//ack. waiting time (this value does not include round trip propagation delay)
+		t_transacTime += 2*max_pDelay;
+		//round trip propagation delay (802.15.4 ignores this, but it should be there even though it is very small)
+		t_transacTime += t_IFS;
+		//IFS time -- not only ensure that the sender can finish the transaction, but also the receiver
 		t_fCAP = mac->getCAP(true);
 
 		/* Linux floating number compatibility
