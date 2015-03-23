@@ -59,6 +59,7 @@ CsmaCA802_15_4::CsmaCA802_15_4(Phy802_15_4 *p, Mac802_15_4 *m)
 {
 	phy = p;
 	mac = m;
+	//txPkt是一个包，这个包里什么都没有。。。。
 	txPkt = 0;
 	waitNextBeacon = false;
 	//添加退避时间
@@ -99,15 +100,16 @@ void CsmaCA802_15_4::reset(void)
 	}
 }
 
-//获得竞争接入器的起始时间
+//获得竞争接入期的起始时间
 double CsmaCA802_15_4::adjustTime(double wtime)
 {
 	//find the beginning point of CAP and adjust the scheduled time
 	//if it comes before CAP
 	double neg;
 	double tmpf;
-
+	//assert到底是啥意思？应用？
 	assert(txPkt);
+	//如果这个包有始发位置
 	if (!mac->toParent(txPkt))
 	{
 		if (mac->mpib.macBeaconOrder != 15)
@@ -163,19 +165,22 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 
 	waitNextBeacon = false;
 	wtime = mac->locateBoundary(mac->toParent(txPkt),wtime);
-	if (!mac->toParent(txPkt))
+	if (!mac->toParent(txPkt))//该包是向父节点发送的
 	{
 		if (mac->mpib.macBeaconOrder != 15)
-		{
+		{//如果是信标模式
 			if (mac->sfSpec.BLE)
+				//获得竞争接入时间
 				t_CAP = mac->getBattLifeExtSlotNum();
 			else
+				//t_CAP = (超帧频谱的最后一帧） * （sfSpec.sd /单位退避时间） - 信标时间
 				t_CAP = (mac->sfSpec.FinCAP + 1) * (mac->sfSpec.sd / aUnitBackoffPeriod) - mac->beaconPeriods;	//(mac->sfSpec.sd % aUnitBackoffPeriod) = 0
-
+				
 			/* Linux floating number compatibility
 			t_bPeriods = (UINT_16)(((CURRENT_TIME + wtime - bcnTxTime) / bPeriod) - mac->beaconPeriods);
 			*/
 			{
+			
 			double tmpf;
 			tmpf = CURRENT_TIME + wtime;
 			tmpf -= bcnTxTime;
@@ -196,10 +201,11 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 		else
 			bPeriodsLeft = -1;
 	}
-	else
+	else//该包不是向父节点发送的
 	{
 		if (mac->macBeaconOrder2 != 15)
 		{
+			//BI(两个连续信标间的持续时间，时间间隔）
 			BI2 = mac->sfSpec2.BI / phy->getRate('s');
 			
 			/* Linux floating number compatibility
@@ -217,6 +223,7 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 			*/
 			double tmpf;
 			tmpf = aMaxLostBeacons * BI2;
+			//t_CAP + tmpf 为该帧的总时间吗？
 			if (t_CAP + tmpf < CURRENT_TIME)	
 				bPeriodsLeft = -1;
 			else
@@ -265,7 +272,7 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 			ok = false;
 	}
 	if (!ok)
-	{
+	{//如果没有足够的间隙
 #ifdef DEBUG802_15_4
 		fprintf(stdout,"[%s::%s][%f](node %d) cannot proceed: bPeriodsLeft = %d, orders = %d/%d/%d, type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,mac->index_,bPeriodsLeft,mac->mpib.macBeaconOrder,mac->macBeaconOrder2,mac->macBeaconOrder3,wpan_pName(txPkt),p802_15_4macSA(txPkt),p802_15_4macDA(txPkt),ch->uid(),HDR_LRWPAN(txPkt)->uid,ch->size());
 #endif
@@ -278,6 +285,10 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 
 	//calculate the time needed to finish the transaction
 	t_CCATime = 8 / phy->getRate('s');
+	//从一个设备向另一个发送数据时，发送设备必须在两个连续发送的帧间进行简短的等待，
+	//以允许接收设备在下一帧到达前对接收到的帧进行处理，这被称作帧间间隔（IFS）。
+	//IFS的长度取决于发送帧的大小。小于或等于aMaxSIFSFramesSize的MPDU被当作短帧，
+	//而长帧则是长度大于  aMaxSIFSFramesSize个字节的MPDU。
 	if (HDR_CMN(txPkt)->size() <= aMaxSIFSFrameSize)
 		t_IFS = aMinSIFSPeriod;
 	else
@@ -401,7 +412,9 @@ void CsmaCA802_15_4::newBeacon(char trx)
 
 	if (!mac->txAck)
 		mac->plme_set_trx_state_request(p_RX_ON);	
-
+	
+	
+	//
 	if (bcnOtherT->busy())
 		bcnOtherT->stop();
 
