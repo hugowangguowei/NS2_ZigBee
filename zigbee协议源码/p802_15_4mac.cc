@@ -901,6 +901,9 @@ inline int Mac802_15_4::hdr_type(char* hdr, UINT_16 type)
 	return p802_15_4hdr_type(hdr,type);
 }
 
+
+
+//到了关键了？？？
 void Mac802_15_4::recv(Packet *p, Handler *h)
 {
 	hdr_lrwpan* wph = HDR_LRWPAN(p);
@@ -1271,13 +1274,14 @@ void Mac802_15_4::recvBeacon(Packet *p)
 	/* Linux floating number compatibility
 	macBcnRxTime = (CURRENT_TIME - txtime) * phy->getRate('s');
 	*/
+	//计算接收这个Bcn的总时间
 	{
 	double tmpf;
 	tmpf = CURRENT_TIME - txtime;
 	macBcnRxTime = tmpf * phy->getRate('s');
 	}
-
 	//calculate <beaconPeriods2>
+	//看这个帧间隔是长的还是短的
 	if (HDR_CMN(p)->size() <= aMaxSIFSFrameSize)
 		ifs = aMinSIFSPeriod;
 	else
@@ -1329,6 +1333,7 @@ void Mac802_15_4::recvBeacon(Packet *p)
 		return;		
 	}
 	numLostBeacons = 0;
+	//在nam上进行标记
 	nam->flashNodeMark(CURRENT_TIME);
 	macBeaconOrder2 = sfSpec2.BO;
 	macSuperframeOrder2 = sfSpec2.SO;

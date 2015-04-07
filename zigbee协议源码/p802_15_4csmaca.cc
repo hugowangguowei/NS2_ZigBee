@@ -491,6 +491,7 @@ void CsmaCA802_15_4::start(bool firsttime,Packet *pkt,bool ackreq)
 		beaconOther = (mac->macBeaconOrder3 != 15);
 		reset();	
 		assert(txPkt == 0);
+		//下面这些都是实例化
 		txPkt = pkt;
 		ackReq = ackreq;
 		rate = phy->getRate('s');
