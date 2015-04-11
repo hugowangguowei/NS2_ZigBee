@@ -906,7 +906,20 @@ inline int Mac802_15_4::hdr_type(char* hdr, UINT_16 type)
 //到了关键了？？？
 void Mac802_15_4::recv(Packet *p, Handler *h)
 {
+	//比如HDR_MAC(p)，即可以取得对应的域。而具体如何取则由hdr_***::access来实现。access是每一种包头都包含的，比如hdr_cmn:
+    //inline static hdr_cmn* access(const Packet* p) {
+	//return (hdr_cmn*) p->access(offset_);
+	//}
+	//再看看包Packet的access函数，如下：
+	//inline unsigned char* access(int off) const {
+    //   if (off < 0)     abort();
+    //   return (&bits_[off]);
+	//}
+	//到此，基本明白了，offset其实是每个包相对于packet开始的偏移值，通过这个偏移值即可确定其在整个包中的地址。
+	
+	//LRWPAN (low rate wireless personal Area network)
 	hdr_lrwpan* wph = HDR_LRWPAN(p);
+	//hdr_cmn 共用common头
 	hdr_cmn *ch = HDR_CMN(p);
 	bool noAck;
 	int i;
@@ -917,6 +930,7 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 	if (!Nam802_15_4::emStatus)
 		Nam802_15_4::emStatus = (netif_->node()->energy_model()?true:false);	//is there a better place to do this?
 
+	//发出的包
 	if(ch->direction() == hdr_cmn::DOWN)	//outgoing packet
 	{
 #ifdef DEBUG802_15_4
@@ -978,21 +992,25 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 	}
 	else	//incoming packet
 	{
-#ifdef DEBUG802_15_4
+		//接收到的包
+		#ifdef DEBUG802_15_4
 		fprintf(stdout,"[%s::%s][%f](node %d) incoming pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+		#endif
 		resetCounter(p802_15_4macSA(p));
+		//丢包的过程。。。。
 		//if during ED scan, discard all frames received over the PHY layer data service (sec. 7.5.2.1.1)
+		//丢所有不属于信标帧的帧
 		//if during Active/Passive scan, discard all frames received over the PHY layer data service that are not beacon frames (sec. 7.5.2.1.2/7.5.2.1.3)
 		//if during Orphan scan, discard all frames received over the PHY layer data service that are not coordinator realignment command frames (sec. 7.5.2.1.4)
 		frmCtrl.FrmCtrl = wph->MHR_FrmCtrl;
 		frmCtrl.parse();
 		if (taskP.taskStatus(TP_mlme_scan_request))
+		//以下是几类包清理工作
 		if (taskP.mlme_scan_request_ScanType == 0x00)		//ED scan
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][ED][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+			#endif
 			drop(p,"ED");
 			return;
 		}
@@ -1000,28 +1018,29 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 		        ||(taskP.mlme_scan_request_ScanType == 0x02))	//Passive scan
 		     && (frmCtrl.frmType != defFrmCtrl_Type_Beacon))
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][APS][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+			#endif
 			drop(p,"APS");
 			return;
 		}
 		else if ((taskP.mlme_scan_request_ScanType == 0x03)	//Orphan scan
 		     && ((frmCtrl.frmType != defFrmCtrl_Type_MacCmd)||(wph->MSDU_CmdType != 0x08)))
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][OPH][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+			#endif
 			drop(p,"OPH");
 			return;
 		}
 
+		//发生冲突的时候丢弃包
 		//drop the packet if corrupted
 		if (ch->error())
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][ERR][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+			#endif
 			drop(p,"ERR");
 			return;
 		}
@@ -1056,29 +1075,35 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 
 		//---perform filtering (refer to sec. 7.5.6.2)---
 		//drop the packet if FCS is not correct (ignored in simulation)
+		//反正就是把不符合要求的包丢掉
 		if (ch->ptype() == PT_MAC)	//perform further filtering only if it is an 802.15.4 packet
+		//该句是对ch的判断，当ch的类型是zigbee包(为什么判断条件是 == PT_MAC?)的时候，才会进行处理
 		if (!mpib.macPromiscuousMode)	//perform further filtering only if the PAN is currently not in promiscuous mode
+		//当前的PAN不混乱的情况下。。。
 		{
 			//check packet type
+			//如果不属于下面的四种情况，就丢弃
 			if ((frmCtrl.frmType != defFrmCtrl_Type_Beacon)
 			  &&(frmCtrl.frmType != defFrmCtrl_Type_Data)
 			  &&(frmCtrl.frmType != defFrmCtrl_Type_Ack)
 			  &&(frmCtrl.frmType != defFrmCtrl_Type_MacCmd))
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[D][TYPE][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+				#endif
 				drop(p,"TYPE");
 				return;
 			}
 			//check source PAN ID for beacon frame
+			//对于信标帧来说：
+			//如果该信标帧不是从PAN发过来的。。。也要丢弃。。。
 			if ((frmCtrl.frmType == defFrmCtrl_Type_Beacon)
 			  &&(mpib.macPANId != 0xffff)
 			  &&(wph->MHR_SrcAddrInfo.panID != mpib.macPANId))
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[D][PAN][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+				#endif
 				drop(p,"PAN");
 				return;
 			}
@@ -1088,9 +1113,9 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 			if ((wph->MHR_DstAddrInfo.panID != 0xffff)
 			  &&(wph->MHR_DstAddrInfo.panID != mpib.macPANId))
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[D][PAN][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+				#endif
 				drop(p,"PAN");
 				return;
 			}
@@ -1100,9 +1125,9 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 				if ((wph->MHR_DstAddrInfo.addr_16 != 0xffff)
 				 && (wph->MHR_DstAddrInfo.addr_16 != mpib.macShortAddress))
 				{
-#ifdef DEBUG802_15_4
+					#ifdef DEBUG802_15_4
 					fprintf(stdout,"[D][ADR][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+					#endif
 					drop(p,"ADR");
 					return;
 				}
@@ -1112,9 +1137,9 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 			{
 				if (wph->MHR_DstAddrInfo.addr_64 != aExtendedAddress)
 				{
-#ifdef DEBUG802_15_4
+					#ifdef DEBUG802_15_4
 					fprintf(stdout,"[D][ADR][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+					#endif
 					drop(p,"ADR");
 					return;
 				}
@@ -1127,30 +1152,33 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 				if (((!capability.FFD)||(numberDeviceLink(&deviceLink1) == 0))	//I am not a coordinator
 				  ||(wph->MHR_SrcAddrInfo.panID != mpib.macPANId))
 				{
-#ifdef DEBUG802_15_4
+					#ifdef DEBUG802_15_4
 					fprintf(stdout,"[D][PAN][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+					#endif
 					drop(p,"PAN");
 					return;
 				}
 			}
+			
 			//we need to add one more filter for supporting multi-hop beacon enabled mode (not in the draft)
 			if (frmCtrl.frmType == defFrmCtrl_Type_Beacon)
 			if (wph->MHR_DstAddrInfo.panID != 0xffff)
 			if ((mpib.macCoordExtendedAddress != wph->MHR_SrcAddrInfo.addr_64)	//ok even for short address (in simulation)
 			&&  (mpib.macCoordExtendedAddress != def_macCoordExtendedAddress))
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[D][COO][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+				#endif
 				drop(p,"COO");
 				return;
 			}
 		}	//---filtering done---
+		//----筛选完成----
 
 		//perform security task if required (ignored in simulation)
 
 		//send an acknowledgement if needed (no matter this is a duplicated packet or not)
+		//不论是不是重复的包，都返回一个确认
 		if ((frmCtrl.frmType == defFrmCtrl_Type_Data)
 		  ||(frmCtrl.frmType == defFrmCtrl_Type_MacCmd))
 		if (frmCtrl.ackReq)	//acknowledgement required
@@ -1188,7 +1216,7 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 		if (frmCtrl.frmType == defFrmCtrl_Type_MacCmd)
 		if ((rxCmd)||(txBcnCmd))
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			{
 			fprintf(stdout,"[D][BSY][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
 			if (rxCmd)
@@ -1196,7 +1224,7 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 			if (txBcnCmd)
 				fprintf(stdout,"\ttxBcnCmd pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",wpan_pName(txBcnCmd),p802_15_4macSA(txBcnCmd),p802_15_4macDA(txBcnCmd),HDR_CMN(txBcnCmd)->uid(),HDR_LRWPAN(txBcnCmd)->uid,HDR_CMN(txBcnCmd)->size());
 			}
-#endif
+			#endif
 			drop(p,"BSY");
 			return;
 		}
@@ -1204,14 +1232,15 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 		if (frmCtrl.frmType == defFrmCtrl_Type_Data)
 		if (rxData)
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][BSY][%s::%s::%d][%f](node %d) dropping pkt: type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,__LINE__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),p802_15_4macDA(p),ch->uid(),wph->uid,ch->size());
-#endif
+			#endif
 			drop(p,"BSY");
 			return;
 		}
 
 		//check duplication -- must be performed AFTER all drop's
+		//检测重复包（必须放在所有的需要丢弃的包丢弃之后）
 		if (frmCtrl.frmType == defFrmCtrl_Type_Beacon)
 			i = chkAddUpdHListLink(&hlistBLink1,&hlistBLink2,p802_15_4macSA(p),wph->MHR_BDSN);
 		else if (frmCtrl.frmType != defFrmCtrl_Type_Ack)
@@ -1225,9 +1254,9 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 		}
 		if (i == 2)
 		{
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[D][DUP][%s::%s][%f](node %d) dropping duplicated packet: type = %s, from = %d, uid = %d, mac_uid = %ld, size = %d, SN = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),ch->uid(),wph->uid,ch->size(),wph->MHR_BDSN);
-#endif
+			#endif
 			drop(p,"DUP");
 			return;
 		}
@@ -1250,6 +1279,7 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 			recvData(p);
 		}
 	}
+
 }
 
 void Mac802_15_4::recvBeacon(Packet *p)
@@ -1264,10 +1294,10 @@ void Mac802_15_4::recvBeacon(Packet *p)
 	//update superframe specification
 	sfSpec2.SuperSpec = wph->MSDU_SuperSpec;
 	sfSpec2.parse();
-#ifdef DEBUG802_15_4
+	#ifdef DEBUG802_15_4
 	hdr_cmn* ch = HDR_CMN(p);
 	fprintf(stdout,"[%s::%s][%f](node %d) M_BEACON [BO:%d][SO:%d] received: from = %d, uid = %d, mac_uid = %ld, size = %d, SN = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,sfSpec2.BO,sfSpec2.SO,p802_15_4macSA(p),ch->uid(),wph->uid,ch->size(),wph->MHR_BDSN);
-#endif
+	#endif
 	//calculate the time when we received the first bit of the beacon
 	txtime = phy->trxTime(p);
 
@@ -1303,8 +1333,9 @@ void Mac802_15_4::recvBeacon(Packet *p)
 	//update PAN descriptor
 	frmCtrl.FrmCtrl = wph->MHR_FrmCtrl;
 	frmCtrl.parse();
-	panDes2.CoordAddrMode = frmCtrl.srcAddrMode;
-	panDes2.CoordPANId = wph->MHR_SrcAddrInfo.panID;
+	//panDes2是PAN描述器之一，一共有两个：panDes和panDes2，但是在该文件中好像没有用到panDes
+	panDes2.CoordAddrMode = frmCtrl.srcAddrMode;			
+	panDes2.CoordPANId = wph->MHR_SrcAddrInfo.panID;//PANID是可选配置项，用来控制 ZigBee路由器和终端节点要加入那个网络
 	panDes2.CoordAddress_64 = wph->MHR_SrcAddrInfo.addr_64;		//ok even it is a 16-bit address
 	panDes2.LogicalChannel = wph->phyCurrentChannel;
 	panDes2.SuperframeSpec = wph->MSDU_SuperSpec;
@@ -1317,14 +1348,21 @@ void Mac802_15_4::recvBeacon(Packet *p)
 	panDes2.ACLEntry = wph->ACLEntry;
 	panDes2.SecurityFailure = false;				//ignored in simulation
 	panDes2.clusTreeDepth = wph->clusTreeDepth;
+	
 	//handle active and passive channel scans
+	//处理主动和被动信道扫描
+	//taskP 是 struct taskPending的一个实例
+	//如果当前状态恰好可以接收信标帧，那么就对rxBeacon进行赋值
 	if ((taskP.taskStatus(TP_mlme_scan_request))
 	 || (taskP.taskStatus(TP_mlme_rx_enable_request)))
 	{
+		//Packet *rxBeacon;			----the beacon packet just received
 		rxBeacon = p;
+		//声明信标帧成功收到
 		dispatch(p_SUCCESS,__FUNCTION__);
 	}
-
+	
+	//macPANId == 0xFFFF的时候，不可行？
 	if ((mpib.macPANId == 0xffff)
 	|| (mpib.macPANId != panDes2.CoordPANId)
 	|| (taskP.taskStatus(TP_mlme_associate_request)))
@@ -1332,6 +1370,7 @@ void Mac802_15_4::recvBeacon(Packet *p)
 		Packet::free(p);
 		return;		
 	}
+	
 	numLostBeacons = 0;
 	//在nam上进行标记
 	nam->flashNodeMark(CURRENT_TIME);

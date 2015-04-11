@@ -97,8 +97,8 @@ private:
 	bool beaconEnabled,beaconOther;
 	bool waitNextBeacon;
 	double bcnTxTime,bcnRxTime;
-	double bPeriod;				//backoff periods
-	int bPeriodsLeft;			//backoff periods left for next superframe (negative value means no backoff)
+	double bPeriod;				//backoff periods 退避周期
+	int bPeriodsLeft;			//backoff periods left for next superframe (negative value means no backoff)下一超帧的退避数目
 	Packet *txPkt;
 };
 

@@ -118,7 +118,7 @@ double CsmaCA802_15_4::adjustTime(double wtime)
 			neg = (CURRENT_TIME + wtime - bcnTxTime) - mac->beaconPeriods * bPeriod;
 			*/
 			{
-			tmpf = mac->beaconPeriods * bPeriod;
+			tmpf = mac->beaconPeriods * bPeriod;//发送完毕的时间？
 			tmpf = CURRENT_TIME - tmpf;
 			tmpf += wtime;
 			neg = tmpf - bcnTxTime;
