@@ -909,12 +909,12 @@ void Mac802_15_4::recv(Packet *p, Handler *h)
 	//比如HDR_MAC(p)，即可以取得对应的域。而具体如何取则由hdr_***::access来实现。access是每一种包头都包含的，比如hdr_cmn:
     //inline static hdr_cmn* access(const Packet* p) {
 	//return (hdr_cmn*) p->access(offset_);
-	//}
+	//
 	//再看看包Packet的access函数，如下：
 	//inline unsigned char* access(int off) const {
     //   if (off < 0)     abort();
     //   return (&bits_[off]);
-	//}
+	//
 	//到此，基本明白了，offset其实是每个包相对于packet开始的偏移值，通过这个偏移值即可确定其在整个包中的地址。
 	
 	//LRWPAN (low rate wireless personal Area network)
@@ -1515,9 +1515,9 @@ void Mac802_15_4::recvCommand(Packet *p)
 			ackReq = true;
 			wph = HDR_LRWPAN(p);
 			rt_myNodeID = *((UINT_16 *)wph->MSDU_Payload);
-#ifdef ZigBeeIF
+			#ifdef ZigBeeIF
 			sscs->setGetClusTreePara('g',p);
-#endif
+			#endif
 			break;
 		case 0x03:	//Disassociation notification
 			break;
@@ -1541,9 +1541,9 @@ void Mac802_15_4::recvCommand(Packet *p)
 			 && (mpib.macBeaconOrder == 15))				//non-beacon enabled mode
 			{
 				//send a beacon using unslotted CSMA-CA
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+				#endif
 				assert(!txBcnCmd);
 				txBcnCmd = Packet::alloc();
 				if (!txBcnCmd) break;
@@ -1574,9 +1574,9 @@ void Mac802_15_4::recvCommand(Packet *p)
 				wph->MSDU_GTSFields.spec = 0;
 				wph->MSDU_PendAddrFields.spec = 0;
 				wph->MSDU_PayloadLen = 0;
-#ifdef ZigBeeIF
+				#ifdef ZigBeeIF
 				sscs->setGetClusTreePara('s',txBcnCmd);
-#endif
+				#endif
 				constructMPDU(4,txBcnCmd,frmCtrl.FrmCtrl,mpib.macBSN++,wph->MHR_DstAddrInfo,wph->MHR_SrcAddrInfo,sfSpec.SuperSpec,0,0);
 				hdr_dst((char *)HDR_MAC(txBcnCmd),p802_15_4macSA(p));
 				hdr_src((char *)HDR_MAC(txBcnCmd),index_);
@@ -1670,14 +1670,14 @@ bool Mac802_15_4::toParent(Packet *p)
 
 double Mac802_15_4::locateBoundary(bool parent,double wtime)
 {
-	//In the case that a node acts as both a coordinator and a device, 
-	//transmission of beacons is preferablly to be aligned with reception 
+	//In the case that a node acts as both a coordinator协调器 and a device, 
+	//transmission of beacons is preferablly to be aligned校准 with reception 
 	//of beacons to achieve the best results -- but we cannot control this.
 	//For example, the parent may originally work in non-beacon enabled mode
 	//and later on begin to work in beacon enabled mode; the parent will
 	//not align with the child since it is not supposed to handle the beacons
 	//from the child.
-	//So the alignment is specifically w.r.t. either transmission of beacons
+	//So the alignment is specifically（明确的） w.r.t.（关于） either transmission of beacons
 	//(as a coordinator) or reception of beacons (as a device), but there is
 	//no guarantee to satisfy both.
 	
@@ -1706,9 +1706,9 @@ double Mac802_15_4::locateBoundary(bool parent,double wtime)
 	newtime = fmod(tmpf, bPeriod);
 	}
 
-#ifdef DEBUG802_15_4
+	#ifdef DEBUG802_15_4
 	//fprintf(stdout,"[%s::%s][%f](node %d) delay = bPeriod - fmod = %f - %f = %f\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,bPeriod,newtime,bPeriod - newtime);
-#endif
+	#endif
 	if(newtime > 0.0)
 	{
 		/* Linux floating number compatibility
@@ -5031,6 +5031,8 @@ UINT_8 Mac802_15_4::macHeaderLen(UINT_16 FrmCtrl)
 	return macHLen;
 }
 
+
+//构建确认帧
 void Mac802_15_4::constructACK(Packet *p)
 {
 	bool intraPan;
@@ -5085,9 +5087,9 @@ void Mac802_15_4::constructACK(Packet *p)
 	ch2->next_hop_ = p802_15_4macDA(ack);	//nam needs the nex_hop information
 	p802_15_4hdrACK(ack);
 
-#ifdef DEBUG802_15_4
+	#ifdef DEBUG802_15_4
 	fprintf(stdout,"[%s::%s][%f](node %d) before alloc txAck:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+	#endif
 	assert(!txAck);		//it's impossilbe to receive the second packet before
 				//the Ack has been sent out.
 	txAck = ack;

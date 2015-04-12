@@ -273,9 +273,9 @@ bool CsmaCA802_15_4::canProceed(double wtime, bool afterCCA)
 	}
 	if (!ok)
 	{//如果没有足够的间隙
-#ifdef DEBUG802_15_4
+		#ifdef DEBUG802_15_4
 		fprintf(stdout,"[%s::%s][%f](node %d) cannot proceed: bPeriodsLeft = %d, orders = %d/%d/%d, type = %s, src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,mac->index_,bPeriodsLeft,mac->mpib.macBeaconOrder,mac->macBeaconOrder2,mac->macBeaconOrder3,wpan_pName(txPkt),p802_15_4macSA(txPkt),p802_15_4macDA(txPkt),ch->uid(),HDR_LRWPAN(txPkt)->uid,ch->size());
-#endif
+		#endif
 		if (mac->macBeaconOrder2 != 15)
 		if (!mac->bcnRxT->busy())
 			mac->bcnRxT->start();
@@ -508,13 +508,17 @@ void CsmaCA802_15_4::start(bool firsttime,Packet *pkt,bool ackreq)
 		}
 	}
 
+	//这一句就尤其重要了！！！！！！！
+	//要改的就是这一句！！！！！！！！
+	//在0和2的BE次方之间取随机数
 	wtime = (Random::random() % (1<<BE)) * bPeriod;
 	wtime = adjustTime(wtime);
+	//默认为需要退避
 	backoff = true;
 	if (beaconEnabled||beaconOther)
-	{
-		if (beaconEnabled)
-		if (firsttime)
+	{//如果为信标使能或者是beaconOther
+		if (beaconEnabled)//如果是信标使能状态
+		if (firsttime)//如果是第一次
 			wtime = mac->locateBoundary(mac->toParent(txPkt),wtime);
 		if (!canProceed(wtime))		
 			backoff = false;
@@ -582,6 +586,7 @@ void CsmaCA802_15_4::deferCCAHandler(void)
 	phy->PLME_CCA_request();
 }
 
+//This function should be called when mac receiving CCA_confirm.
 void CsmaCA802_15_4::CCA_confirm(PHYenum status)
 {
 	//This function should be called when mac receiving CCA_confirm.
