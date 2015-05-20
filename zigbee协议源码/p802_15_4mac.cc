@@ -1486,17 +1486,18 @@ void Mac802_15_4::recvAck(Packet *p)
 	log(p);
 }
 
+//收到命令帧之后的函数执行
 void Mac802_15_4::recvCommand(Packet *p)
 {
 	hdr_lrwpan* wph;
 	FrameCtrl frmCtrl;
 	bool ackReq;
 
-#ifdef DEBUG802_15_4
+	#ifdef DEBUG802_15_4
 	wph = HDR_LRWPAN(p);
 	hdr_cmn* ch = HDR_CMN(p);
 	fprintf(stdout,"[%s::%s][%f](node %d) %s received: from = %d, uid = %d, mac_uid = %ld, size = %d, SN = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,wpan_pName(p),p802_15_4macSA(p),ch->uid(),wph->uid,ch->size(),wph->MHR_BDSN);
-#endif
+	#endif
 	ackReq = false;
 	switch(HDR_LRWPAN(p)->MSDU_CmdType)
 	{
@@ -1577,6 +1578,10 @@ void Mac802_15_4::recvCommand(Packet *p)
 				#ifdef ZigBeeIF
 				sscs->setGetClusTreePara('s',txBcnCmd);
 				#endif
+				//mac层需要维护两个序列号：BSN和DSN，BSN用MacBSN来记录，每发送一个对应的帧，BSN都会增加1，超过最大值就会变成0
+				//发送一个信标
+				//在这个帧中的SuperSpec(超帧规范）为0，所以没有传递任何消息。。。
+				//那么说，我只要传递一点消息就可以了？
 				constructMPDU(4,txBcnCmd,frmCtrl.FrmCtrl,mpib.macBSN++,wph->MHR_DstAddrInfo,wph->MHR_SrcAddrInfo,sfSpec.SuperSpec,0,0);
 				hdr_dst((char *)HDR_MAC(txBcnCmd),p802_15_4macSA(p));
 				hdr_src((char *)HDR_MAC(txBcnCmd),index_);
@@ -1815,10 +1820,10 @@ void Mac802_15_4::beaconTxHandler(bool forTX)
 						//order in the middle.
 			if (txAck)
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				if (!updateDeviceLink(tr_oper_est, &deviceLink1, &deviceLink2, p802_15_4macDA(txAck)))	//this ACK is for my child
 					fprintf(stdout,"[%f](node %d) outgoing ACK truncated by beacon: src = %d, dst = %d, uid = %d, mac_uid = %ld, size = %d\n", CURRENT_TIME,index_,p802_15_4macSA(txAck),p802_15_4macDA(txAck),HDR_CMN(txAck)->uid(),HDR_LRWPAN(txAck)->uid,HDR_CMN(txAck)->size());
-#endif
+				#endif
 				Packet::free(txAck);
 				txAck = 0;
 			}
@@ -1842,9 +1847,9 @@ void Mac802_15_4::beaconTxHandler(bool forTX)
 					return;
 				}
 			}
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBeacon:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+			#endif
 			if (updateNFailLink(fl_oper_est,index_) == 0)
 			{
 				if (txBeacon)
@@ -1921,7 +1926,7 @@ void Mac802_15_4::beaconTxHandler(bool forTX)
 			wph->MSDU_PayloadLen = mpib.macBeaconPayloadLength;
 			memcpy(wph->MSDU_Payload,mpib.macBeaconPayload,mpib.macBeaconPayloadLength);
 			//-----------------------------------------
-#ifdef ZigBeeIF
+			#ifdef ZigBeeIF
 			sscs->setGetClusTreePara('s',txBeacon);
 #endif
 			constructMPDU(2 + gtsSpec.size() + pendAddrSpec.size() + mpib.macBeaconPayloadLength,txBeacon,frmCtrl.FrmCtrl,mpib.macBSN++,wph->MHR_DstAddrInfo,wph->MHR_SrcAddrInfo,sfSpec.SuperSpec,0,0);
@@ -1930,7 +1935,7 @@ void Mac802_15_4::beaconTxHandler(bool forTX)
 			HDR_CMN(txBeacon)->ptype() = PT_MAC;
 			HDR_CMN(txBeacon)->next_hop_ = p802_15_4macDA(txBeacon);		//nam needs the nex_hop information
 			p802_15_4hdrBeacon(txBeacon);
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[%s::%s][%f](node %d) transmit BEACON to %d: SN = %d, uid = %d, mac_uid = %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,p802_15_4macDA(txBeacon),HDR_LRWPAN(txBeacon)->MHR_BDSN,HDR_CMN(txBeacon)->uid(),HDR_LRWPAN(txBeacon)->uid);
 #endif
 			txPkt = txBeacon;
@@ -2867,9 +2872,9 @@ void Mac802_15_4::mlme_associate_request(UINT_8 LogicalChannel,UINT_8 CoordAddrM
 			taskP.mlme_associate_request_CoordAddrMode = CoordAddrMode;
 			taskP.mlme_associate_request_SecurityEnable = SecurityEnable;
 			//--- send an association request command ---
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd2:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+			#endif
 			assert(!txBcnCmd2);
 			txBcnCmd2 = Packet::alloc();
 			assert(txBcnCmd2);
@@ -2950,9 +2955,9 @@ void Mac802_15_4::mlme_associate_request(UINT_8 LogicalChannel,UINT_8 CoordAddrM
 			taskP.taskStep(task)++;
 			strcpy(taskP.taskFrFunc(task),"PD_DATA_confirm");
 			//-- send a data request command to extract the response ---
-#ifdef DEBUG802_15_4
+			#ifdef DEBUG802_15_4
 			fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd2:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+			#endif
 			assert(!txBcnCmd2);
 			txBcnCmd2 = Packet::alloc();
 			assert(txBcnCmd2);
@@ -3035,10 +3040,10 @@ void Mac802_15_4::mlme_associate_request(UINT_8 LogicalChannel,UINT_8 CoordAddrM
 					changeNodeColor(CURRENT_TIME,(mpib.macAssociationPermit)?Nam802_15_4::def_Coor_clr:Nam802_15_4::def_Dev_clr);
 					char label[31];
 					sprintf(label,"[%d]",mpib.macCoordExtendedAddress);
-#ifdef ZigBeeIF
+					#ifdef ZigBeeIF
 					if (sscs->t_isCT)
 						sprintf(label,"\"%s%d (%d.%d)\"",(sscs->RNType())?"+":"-",rt_myNodeID,sscs->rt_myParentNodeID,sscs->rt_myDepth);
-#endif
+						#endif
 					nam->changeLabel(CURRENT_TIME,label);
 				}
 				else
@@ -3105,9 +3110,9 @@ void Mac802_15_4::mlme_associate_response(IE3ADDR DeviceAddress,UINT_16 AssocSho
 			rspPkt = Packet::alloc();
 			assert(rspPkt);
 			wph = HDR_LRWPAN(rspPkt);
-#ifdef ZigBeeIF
+			#ifdef ZigBeeIF
 			sscs->setGetClusTreePara('s',rspPkt);
-#endif
+			#endif
 			constructCommandHeader(rspPkt,&frmCtrl,0x02,defFrmCtrl_AddrMode64,mpib.macPANId,DeviceAddress,defFrmCtrl_AddrMode64,mpib.macPANId,aExtendedAddress,SecurityEnable,false,true);
 			*((UINT_16 *)wph->MSDU_Payload) = AssocShortAddress;
 			*((MACenum *)(wph->MSDU_Payload + 2)) = Status;
@@ -3116,10 +3121,10 @@ void Mac802_15_4::mlme_associate_response(IE3ADDR DeviceAddress,UINT_16 AssocSho
 			i = chkAddTransacLink(&transacLink1,&transacLink2,defFrmCtrl_AddrMode64,DeviceAddress,rspPkt,0,kpTime);
 			if (i != 0)	//overflow or failed
 			{
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				hdr_cmn *ch = HDR_CMN(rspPkt);
 				fprintf(stdout,"[%s::%s][%f](node %d) task overflow or failed: type = %s, src = %d, dst = %d, uid = %d, mac_uid = ??, size = %d\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,wpan_pName(rspPkt),p802_15_4macSA(rspPkt),p802_15_4macDA(rspPkt),wph->uid,ch->size());
-#endif
+				#endif
 				taskP.taskStatus(task) = false;
 				Packet::free(rspPkt);
 				sscs->MLME_COMM_STATUS_indication(mpib.macPANId,defFrmCtrl_AddrMode64,aExtendedAddress,defFrmCtrl_AddrMode64,DeviceAddress,m_TRANSACTION_OVERFLOW);
@@ -3285,9 +3290,9 @@ void Mac802_15_4::mlme_orphan_response(IE3ADDR OrphanAddress,UINT_16 ShortAddres
 			if (AssociatedMember)
 			{
 				//send a coordinator realignment command
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+				#endif
 				taskP.taskStatus(task) = true;
 				taskP.taskStep(task)++;
 				strcpy(taskP.taskFrFunc(task),"csmacaCallBack");
@@ -3679,9 +3684,11 @@ void Mac802_15_4::mlme_scan_request(UINT_8 ScanType,UINT_32 ScanChannels,UINT_8 
 				taskP.taskStep(task)++;
 				strcpy(taskP.taskFrFunc(task),"csmacaCallBack");
 				//--- send a beacon request command ---
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd2:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+				#endif
+				//下面是发送一个信标请求帧的过程：
+				//0x07表示信标请求。
 				assert(!txBcnCmd2);
 				txBcnCmd2 = Packet::alloc();
 				assert(txBcnCmd2);
@@ -3975,20 +3982,21 @@ void Mac802_15_4::mlme_start_request(UINT_16 PANId,UINT_8 LogicalChannel,UINT_8 
 				return;
 			}
 			taskP.taskStatus(task) = true;
-			if (CoordRealignment)		//send a realignment command before changing configuration that affects the command
+			if (CoordRealignment)		//send a realignment（重组） command before changing configuration（配置） that affects the command
+			//在改变的配置影响命令之前发送一个重组命令
 			{
 				taskP.taskStep(task)++;
 				strcpy(taskP.taskFrFunc(task),"csmacaCallBack");
 				//broadcast a realignment command
-#ifdef DEBUG802_15_4
+				#ifdef DEBUG802_15_4
 				fprintf(stdout,"[%s::%s][%f](node %d) before alloc txBcnCmd2:\n\t\ttxBeacon\t= %ld\n\t\ttxAck   \t= %ld\n\t\ttxBcnCmd\t= %ld\n\t\ttxBcnCmd2\t= %ld\n\t\ttxData  \t= %ld\n",__FILE__,__FUNCTION__,CURRENT_TIME,index_,txBeacon,txAck,txBcnCmd,txBcnCmd2,txData);
-#endif
+				#endif
 				assert(!txBcnCmd2);
 				txBcnCmd2 = Packet::alloc();
 				assert(txBcnCmd2);
 				wph = HDR_LRWPAN(txBcnCmd2);
 				constructCommandHeader(txBcnCmd2,&frmCtrl,0x08,defFrmCtrl_AddrMode16,0xffff,0xffff,defFrmCtrl_AddrMode64,mpib.macPANId,aExtendedAddress,false,false,false);
-				//--- payload (refer to Figure 56) ---
+				//--- payload (refer to Figure 56) ---有效载荷
 				wph->MSDU_PayloadLen = 7;
 				*((UINT_16 *)wph->MSDU_Payload) = PANId;			//PAN identifier
 				*((UINT_16 *)(wph->MSDU_Payload + 2)) = mpib.macShortAddress;	//Coor. short address
@@ -5095,6 +5103,7 @@ void Mac802_15_4::constructACK(Packet *p)
 	txAck = ack;
 }
 
+
 void Mac802_15_4::constructMPDU(UINT_8 msduLength,Packet *msdu, UINT_16 FrmCtrl,UINT_8 BDSN,panAddrInfo DstAddrInfo,
 				 panAddrInfo  SrcAddrInfo,UINT_16 SuperSpec,UINT_8 CmdType,UINT_16 FCS)
 {
@@ -5114,7 +5123,7 @@ void Mac802_15_4::constructMPDU(UINT_8 msduLength,Packet *msdu, UINT_16 FrmCtrl,
 	wph->MHR_SrcAddrInfo = SrcAddrInfo;
 	wph->MSDU_SuperSpec = SuperSpec;
 	wph->MSDU_CmdType = CmdType;
-	wph->MFR_FCS = FCS;
+	wph->MFR_FCS = FCS;//帧校验序列(FCS，Frame Check Sequence)
 
 	//update packet length
 	ch->size() = msduLength + macHeaderLen(FrmCtrl);

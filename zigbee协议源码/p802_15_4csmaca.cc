@@ -449,10 +449,11 @@ void CsmaCA802_15_4::newBeacon(char trx)
 	bcnRxTime = mac->macBcnRxTime / rate;
 	bPeriod = aUnitBackoffPeriod / rate;
 
-	if (waitNextBeacon)
+	if (waitNextBeacon)//如果正在等待信标帧
 	if ((txPkt)
-        && (!backoffT->busy()))
+        && (!backoffT->busy()))//没有处于退避等待过程
 	{
+		//assert宏的原型定义在<assert.h>中，其作用是如果它的条件返回错误，则终止程序执行
 		assert(bPeriodsLeft >= 0);
 		if (bPeriodsLeft == 0)
 		{
